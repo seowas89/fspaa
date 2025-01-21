@@ -1,77 +1,109 @@
 import requests
-from serpapi import GoogleSearch
 import streamlit as st
+from bs4 import BeautifulSoup
+import json
 
-# Function to fetch Google Search Results using SerpAPI
-def get_serp_results(keyword, api_key):
-    params = {
-        "q": keyword,
-        "api_key": api_key,  # Use your actual SerpAPI key
-        "engine": "google"
-    }
-    search = GoogleSearch(params)
-    results = search.get_dict()
-    return results
 
-# Function to extract PAA questions from the Google search results
-def extract_paa(results):
-    paa_questions = []
-    if "related_questions" in results:
-        for question in results["related_questions"]:
-            paa_questions.append(question["question"])
-    return paa_questions
-
-# Function to fetch content from a given URL
-def fetch_content_from_url(url):
+# Function to fetch SEO data for the given keyword using SEPAPI
+def get_seo_data(keyword, api_key):
+    url = f"https://api.sepapi.com/v1/seo/featured_snippet?keyword={keyword}&api_key={api_key}"
+    
     response = requests.get(url)
-    return response.text
+    
+    if response.status_code == 200:
+        data = response.json()
+        return data
+    else:
+        st.error("Error fetching SEO data")
+        return None
 
-# Streamlit app function
+
+# Function to fetch People Also Ask from Google SERP
+def get_people_also_ask(keyword):
+    search_url = f"https://www.google.com/search?q={keyword}"
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"}
+
+    response = requests.get(search_url, headers=headers)
+    soup = BeautifulSoup(response.text, 'html.parser')
+
+    # Extracting People Also Ask data
+    people_also_ask = []
+    for question in soup.find_all('div', {'class': 'related-question-pair'}):
+        question_text = question.get_text()
+        people_also_ask.append(question_text.strip())
+
+    return people_also_ask
+
+
+# Function to suggest SEO optimization strategies
+def suggest_seo_optimization(current_snippet, competitor_content, your_content, people_ask_data):
+    suggestions = []
+
+    # Compare lengths and structure of the content
+    if len(current_snippet) > len(your_content):
+        suggestions.append("Make your content more concise and structured like the featured snippet.")
+    
+    if current_snippet != your_content:
+        suggestions.append(f"Include key phrases from the featured snippet like: '{current_snippet[:50]}'")
+
+    # Check for gaps and additional content from competitors
+    if competitor_content and len(competitor_content) > len(your_content):
+        suggestions.append("Add more relevant content like your competitors to enhance your chances.")
+
+    # Incorporate People Also Ask questions
+    for question in people_ask_data:
+        suggestions.append(f"Consider including an answer to this question: '{question}'")
+
+    # Final SEO content optimization
+    suggestions.append("Focus on clear, concise content with rich formatting and frequently asked questions.")
+
+    return suggestions
+
+
+# Main function to run the app
 def main():
-    st.title("SEO Optimization for Featured Snippets")
-    
-    # Input the keyword for analysis
-    keyword = st.text_input("Enter Keyword", "")
-    
-    if keyword:
-        # Provide your SerpAPI key here
-        serpapi_key = "74a076b94b88e3541df371407c65d4b4628da2d2db43576e0667d50a35d5e395"
-        
-        try:
-            # Get Google Search Results using SerpAPI
-            results = get_serp_results(keyword, serpapi_key)
-            
-            if not results:
-                st.error("No results found. Please check your API key or try another keyword.")
-                return
-            
-            # Extract Featured Snippet Content and PAA questions
-            featured_snippet = results.get('answer_box', {}).get('snippet', 'No featured snippet found.')
-            paa_questions = extract_paa(results)
-            
-            # Show the Featured Snippet content
-            st.subheader("Featured Snippet")
-            st.write(featured_snippet)
-            
-            # Show the PAA questions
-            st.subheader("People Also Ask (PAA) Questions")
-            if paa_questions:
-                for idx, question in enumerate(paa_questions, 1):
-                    st.write(f"{idx}. {question}")
-            else:
-                st.write("No PAA questions found.")
-            
-            # Input Your Content
-            your_content = st.text_area("Enter Your Content", "")
-            
-            if your_content:
-                st.write("Your content: ", your_content)
-                
-                # Placeholder for further optimization logic (Add your NLP analysis logic here)
-                st.write("Optimization suggestions will be displayed here.")
-        
-        except Exception as e:
-            st.error(f"An error occurred: {e}")
+    # Define your API key
+    api_key = '74a076b94b88e3541df371407c65d4b4628da2d2db43576e0667d50a35d5e395'
 
-if __name__ == "__main__":
+    st.title('SEO Optimization for Featured Snippets')
+
+    # Get keyword input from the user
+    keyword = st.text_input("Enter the Keyword for SEO Optimization:")
+
+    if keyword:
+        st.write(f"Fetching SEO data for: {keyword}...")
+
+        # Fetch SEO data
+        seo_data = get_seo_data(keyword, api_key)
+
+        if seo_data:
+            featured_snippet = seo_data.get('featured_snippet', '')
+            competitor_content = seo_data.get('competitor_content', '')
+            your_content = seo_data.get('your_content', '')
+
+            st.subheader("Featured Snippet Content:")
+            st.write(featured_snippet)
+
+            st.subheader("Competitor Content:")
+            st.write(competitor_content)
+
+            st.subheader("Your Content:")
+            st.write(your_content)
+
+            # Fetch People Also Ask questions
+            people_ask_data = get_people_also_ask(keyword)
+
+            st.subheader("People Also Ask Questions:")
+            for question in people_ask_data:
+                st.write(question)
+
+            # Suggest SEO optimization
+            st.subheader("SEO Optimization Suggestions:")
+            suggestions = suggest_seo_optimization(featured_snippet, competitor_content, your_content, people_ask_data)
+
+            for suggestion in suggestions:
+                st.write(f"- {suggestion}")
+
+
+if __name__ == '__main__':
     main()
