@@ -48,8 +48,8 @@ def main():
     # Get user input for the keyword
     keyword = st.text_input("Enter the keyword to analyze:")
 
-    # Define your SerpApi key (replace with your actual API key)
-    api_key = 'YOUR_SERPAPI_KEY'
+    # Define your SerpApi key (using the key you provided)
+    api_key = '4a076b94b88e3541df371407c65d4b4628da2d2db43576e0667d50a35d5e395'
 
     if keyword:
         # Fetch the number of Google results with the keyword in the title
