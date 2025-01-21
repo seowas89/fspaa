@@ -1,7 +1,7 @@
-import spacy
 import requests
 from bs4 import BeautifulSoup
 from serpapi import GoogleSearch
+import spacy
 import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
@@ -12,17 +12,14 @@ nltk.download('punkt')
 nltk.download('stopwords')
 nltk.download('wordnet')
 
-# TextRazor API Key (you need to sign up and get this key)
-textrazor_api_key = "your_textrazor_api_key"
-
 # Initialize Spacy for local NLP tasks
 nlp = spacy.load("en_core_web_sm")
 
 # Function to fetch Google search results using SerpAPI
-def get_serp_results(keyword):
+def get_serp_results(keyword, api_key):
     params = {
         "q": keyword,
-        "api_key": "your_serpapi_key",  # Replace with your SerpAPI key
+        "api_key": api_key,  # Use the provided SerpAPI key
         "engine": "google"
     }
     search = GoogleSearch(params)
@@ -61,10 +58,10 @@ def analyze_entities_spacy(text):
     return entities
 
 # Function to analyze text with TextRazor API for Named Entity Recognition (NER)
-def analyze_entities_textrazor(text):
+def analyze_entities_textrazor(text, api_key):
     url = "https://api.textrazor.com/"
     headers = {
-        "x-textrazor-key": textrazor_api_key
+        "x-textrazor-key": api_key
     }
     data = {
         "text": text,
@@ -83,7 +80,7 @@ def analyze_and_suggest_optimization(keyword, featured_snippet, competitor_conte
     
     # 2. Analyze Sentiment and Entities using Spacy/TextRazor
     spacy_entities = analyze_entities_spacy(your_content)
-    textrazor_entities = analyze_entities_textrazor(your_content)
+    textrazor_entities = analyze_entities_textrazor(your_content, "your_textrazor_api_key")  # Replace with your Textrazor API key
     
     suggestions = []
     
@@ -113,28 +110,37 @@ def analyze_and_suggest_optimization(keyword, featured_snippet, competitor_conte
     
     return suggestions
 
-# Main function to get data and analyze
-def main():
-    keyword = input("Enter the keyword to analyze: ")
-    
-    # Get Google Search Results
-    results = get_serp_results(keyword)
-    
-    # Extract Featured Snippet Content, Competitor Content, and PAA questions
-    featured_snippet = results.get('answer_box', {}).get('snippet', '')
-    competitor_content = fetch_content_from_url(results['organic_results'][0]['link'])  # First organic result
-    paa_questions = extract_paa(results)
-    
-    # Your Content (Here you can add your content manually or fetch it from your site)
-    your_content = input("Enter your content: ")
-    
-    # Analyze and suggest optimizations
-    suggestions = analyze_and_suggest_optimization(keyword, featured_snippet, competitor_content, your_content, paa_questions)
-    
-    print("\nSuggested SEO Optimizations for Keyword:", keyword)
-    for suggestion in suggestions:
-        print(f"- {suggestion}")
+# Streamlit app function
+import streamlit as st
 
-# Run the app
+def main():
+    st.title("SEO Optimization for Featured Snippets")
+    
+    # Input the keyword for analysis
+    keyword = st.text_input("Enter Keyword", "")
+    
+    if keyword:
+        # Provide your SerpAPI key here
+        serpapi_key = "74a076b94b88e3541df371407c65d4b4628da2d2db43576e0667d50a35d5e395"
+        
+        # Get Google Search Results using SerpAPI
+        results = get_serp_results(keyword, serpapi_key)
+        
+        # Extract Featured Snippet Content, Competitor Content, and PAA questions
+        featured_snippet = results.get('answer_box', {}).get('snippet', '')
+        competitor_content = fetch_content_from_url(results['organic_results'][0]['link'])  # First organic result
+        paa_questions = extract_paa(results)
+        
+        # Input Your Content
+        your_content = st.text_area("Enter Your Content", "")
+        
+        # If content is entered, analyze and suggest SEO optimizations
+        if your_content:
+            suggestions = analyze_and_suggest_optimization(keyword, featured_snippet, competitor_content, your_content, paa_questions)
+            
+            st.subheader("SEO Optimization Suggestions")
+            for suggestion in suggestions:
+                st.write(f"- {suggestion}")
+
 if __name__ == "__main__":
     main()
