@@ -1,8 +1,5 @@
 pandas
 streamlit
-matplotlib
-seaborn
-beautifulsoup4
 googlesearch-python
 serpapi==2.0.6
 requests==2.26.0
