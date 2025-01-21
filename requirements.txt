@@ -1,4 +1,3 @@
-pandas
 streamlit
 googlesearch-python
 serpapi==2.0.6
