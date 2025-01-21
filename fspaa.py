@@ -4,35 +4,68 @@ from bs4 import BeautifulSoup
 import json
 
 
-# Function to fetch SEO data for the given keyword using SEPAPI
+# Function to fetch SEO data for the given keyword using SerpApi
 def get_seo_data(keyword, api_key):
-    url = f"https://api.sepapi.com/v1/seo/featured_snippet?keyword={keyword}&api_key={api_key}"
-    
-    response = requests.get(url)
-    
-    if response.status_code == 200:
+    # SerpApi endpoint for Google Search results
+    url = f"https://serpapi.com/search?q={keyword}&api_key={api_key}&hl=en"
+
+    try:
+        response = requests.get(url)
+        response.raise_for_status()  # Raise an error if status code is not 2xx
+        
+        # Extracting data from the response
         data = response.json()
-        return data
-    else:
-        st.error("Error fetching SEO data")
+        
+        # Extracting the relevant fields: Featured Snippet, Competitor Content, and Your Content
+        featured_snippet = ""
+        competitor_content = ""
+        your_content = ""
+
+        # If there's a featured snippet, extract it
+        if "organic_results" in data:
+            for result in data["organic_results"]:
+                if "snippet" in result:
+                    featured_snippet = result["snippet"]
+                    break
+        
+        # You can also get other details like "competitor content" from organic search results
+        if "organic_results" in data:
+            competitor_content = data["organic_results"][0].get('title', '')
+        
+        # Placeholder for your own content (you can input it or scrape from your own website)
+        your_content = "Placeholder content for your website."
+
+        return {
+            "featured_snippet": featured_snippet,
+            "competitor_content": competitor_content,
+            "your_content": your_content
+        }
+
+    except requests.exceptions.RequestException as e:
+        st.error(f"Connection Error: {e}")
         return None
 
 
-# Function to fetch People Also Ask from Google SERP
-def get_people_also_ask(keyword):
-    search_url = f"https://www.google.com/search?q={keyword}"
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"}
+# Function to fetch People Also Ask from Google SERP using SerpApi
+def get_people_also_ask(keyword, api_key):
+    url = f"https://serpapi.com/search?q={keyword}&api_key={api_key}&hl=en"
 
-    response = requests.get(search_url, headers=headers)
-    soup = BeautifulSoup(response.text, 'html.parser')
+    try:
+        response = requests.get(url)
+        response.raise_for_status()  # Raise an error if status code is not 2xx
+        
+        data = response.json()
+        people_also_ask = []
 
-    # Extracting People Also Ask data
-    people_also_ask = []
-    for question in soup.find_all('div', {'class': 'related-question-pair'}):
-        question_text = question.get_text()
-        people_also_ask.append(question_text.strip())
+        # If there are People Also Ask questions, extract them
+        if "related_questions" in data:
+            for question in data["related_questions"]:
+                people_also_ask.append(question["question"])
 
-    return people_also_ask
+        return people_also_ask
+    except requests.exceptions.RequestException as e:
+        st.error(f"Error fetching People Also Ask data: {e}")
+        return []
 
 
 # Function to suggest SEO optimization strategies
@@ -62,7 +95,7 @@ def suggest_seo_optimization(current_snippet, competitor_content, your_content, 
 
 # Main function to run the app
 def main():
-    # Define your API key
+    # Define your SerpApi key (replace with your own key)
     api_key = '74a076b94b88e3541df371407c65d4b4628da2d2db43576e0667d50a35d5e395'
 
     st.title('SEO Optimization for Featured Snippets')
@@ -73,7 +106,7 @@ def main():
     if keyword:
         st.write(f"Fetching SEO data for: {keyword}...")
 
-        # Fetch SEO data
+        # Fetch SEO data using SerpApi
         seo_data = get_seo_data(keyword, api_key)
 
         if seo_data:
@@ -91,7 +124,7 @@ def main():
             st.write(your_content)
 
             # Fetch People Also Ask questions
-            people_ask_data = get_people_also_ask(keyword)
+            people_ask_data = get_people_also_ask(keyword, api_key)
 
             st.subheader("People Also Ask Questions:")
             for question in people_ask_data:
