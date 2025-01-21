@@ -1,52 +1,45 @@
 import streamlit as st
-from transformers import T5ForConditionalGeneration, T5Tokenizer
+from transformers import pipeline
 import nltk
-from nltk.tokenize import sent_tokenize
 
+# Download NLTK data for sentence tokenization
 nltk.download('punkt')
 
-def initialize_model():
-    try:
-        model_name = "t5-small"  # You can try 't5-base' or 't5-large' for better results
-        model = T5ForConditionalGeneration.from_pretrained(model_name)
-        tokenizer = T5Tokenizer.from_pretrained(model_name)
-        return model, tokenizer
-    except Exception as e:
-        st.error(f"Error loading model: {e}")
-        return None, None
+# Function to initialize the summarization pipeline
+def initialize_pipeline():
+    summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
+    return summarizer
 
-def rewrite_to_human_style(text, model, tokenizer):
-    if model is None or tokenizer is None:
-        return "Model not loaded successfully."
-
-    input_text = "summarize: " + text
-    inputs = tokenizer(input_text, return_tensors="pt", max_length=512, truncation=True, padding="max_length")
-
-    summary_ids = model.generate(inputs['input_ids'], max_length=150, num_beams=4, early_stopping=True)
-
-    summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
-
-    sentences = sent_tokenize(summary)
+# Function to convert AI-generated text into a human-written style
+def rewrite_to_human_style(text, summarizer):
+    # Summarize the text to make it more concise and human-like
+    summary = summarizer(text, max_length=150, min_length=50, do_sample=False)
+    
+    # Extract the summarized text
+    human_text = summary[0]['summary_text']
+    
+    # Split into short sentences
+    sentences = nltk.sent_tokenize(human_text)
     short_sentences = [sentence.strip() for sentence in sentences if len(sentence) > 0]
     
+    # Join the sentences back into a single text
     human_written_text = " ".join(short_sentences)
     
     return human_written_text
 
+# Streamlit app to input and display the transformed text
 def main():
     st.title("AI to Human Written Style Converter")
 
     ai_text = st.text_area("Enter AI-generated text:", height=250)
 
     if ai_text:
-        model, tokenizer = initialize_model()
+        summarizer = initialize_pipeline()
 
-        if model and tokenizer:
-            human_text = rewrite_to_human_style(ai_text, model, tokenizer)
-            st.subheader("Converted Human-written Style:")
-            st.write(human_text)
-        else:
-            st.warning("Unable to load the model.")
+        # Process the AI-generated text
+        human_text = rewrite_to_human_style(ai_text, summarizer)
+        st.subheader("Converted Human-written Style:")
+        st.write(human_text)
 
 if __name__ == '__main__':
     main()
