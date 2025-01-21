@@ -1,44 +1,56 @@
 import requests
+from bs4 import BeautifulSoup
+import pytrends
+from pytrends.request import TrendReq
 import streamlit as st
 
-# Function to fetch the number of Google results with the keyword in the title using SerpApi
-def get_google_results(keyword, api_key):
-    url = f"https://serpapi.com/search?q={keyword}&api_key={api_key}&hl=en"
-
+# Function to fetch the number of Google results by scraping the Google Search page
+def get_google_results(keyword):
+    search_url = f"https://www.google.com/search?q={keyword}"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    }
+    
     try:
-        response = requests.get(url)
+        response = requests.get(search_url, headers=headers)
         response.raise_for_status()
-        data = response.json()
-
-        # Get the number of results
-        total_results = data.get("search_information", {}).get("total_results", 0)
-        return int(total_results)
-    except requests.exceptions.RequestException as e:
+        soup = BeautifulSoup(response.text, "html.parser")
+        
+        # Scrape the number of results from the search results page
+        result_stats = soup.find("div", {"id": "result-stats"})
+        if result_stats:
+            result_text = result_stats.get_text()
+            result_count = result_text.split(" ")[1].replace(",", "")
+            return int(result_count)
+        else:
+            st.error("Unable to fetch search results.")
+            return 0
+    except Exception as e:
         st.error(f"Error fetching Google results: {e}")
         return 0
 
-# Function to fetch the search volume for the keyword using SerpApi
-def get_search_volume(keyword, api_key):
-    url = f"https://serpapi.com/search?q={keyword}&api_key={api_key}&hl=en"
-
+# Function to fetch relative search interest using pytrends (Google Trends)
+def get_search_interest(keyword):
+    pytrends = TrendReq(hl='en-US', tz=360)
+    pytrends.build_payload([keyword], cat=0, timeframe='today 12-m', geo='', gprop='')
+    
     try:
-        response = requests.get(url)
-        response.raise_for_status()
-        data = response.json()
-
-        # Get the search volume from the structured data (This will depend on how SerpApi structures the data)
-        search_volume = data.get("organic_results", [{}])[0].get("search_volume", 0)  # Example for extracting volume from data
-        return int(search_volume)
-    except requests.exceptions.RequestException as e:
-        st.error(f"Error fetching search volume: {e}")
+        interest_over_time = pytrends.interest_over_time()
+        if not interest_over_time.empty:
+            return interest_over_time[keyword].mean()  # Average interest over the past year
+        else:
+            st.error("No data available for this keyword.")
+            return 0
+    except Exception as e:
+        st.error(f"Error fetching search interest: {e}")
         return 0
 
 # Function to calculate KGR (Keyword Golden Ratio)
-def calculate_kgr(google_results, search_volume):
-    if search_volume == 0:
-        st.error("Search volume cannot be zero!")
+def calculate_kgr(google_results, search_interest):
+    if search_interest == 0:
+        st.error("Search interest cannot be zero!")
         return None
-    kgr = google_results / search_volume
+    kgr = google_results / search_interest
     return kgr
 
 # Function to interpret the KGR value
@@ -57,24 +69,21 @@ def main():
     # Get user input for the keyword
     keyword = st.text_input("Enter the keyword to analyze:")
 
-    # Define your SerpApi key (replace with your actual API key)
-    api_key = '4a076b94b88e3541df371407c65d4b4628da2d2db43576e0667d50a35d5e395'
-
     if keyword:
-        # Fetch the number of Google results with the keyword in the title
+        # Fetch the number of Google results with the keyword
         st.write(f"Fetching Google results for the keyword: {keyword}...")
-        google_results = get_google_results(keyword, api_key)
+        google_results = get_google_results(keyword)
 
-        # Fetch the search volume for the keyword
-        st.write(f"Fetching search volume for the keyword: {keyword}...")
-        search_volume = get_search_volume(keyword, api_key)
+        # Fetch the relative search interest (search volume estimate)
+        st.write(f"Fetching search interest for the keyword: {keyword}...")
+        search_interest = get_search_interest(keyword)
 
-        if google_results > 0 and search_volume > 0:
-            st.write(f"Number of Google results for '{keyword}' with the keyword in the title: {google_results}")
-            st.write(f"Search volume for '{keyword}': {search_volume}")
+        if google_results > 0 and search_interest > 0:
+            st.write(f"Number of Google results for '{keyword}': {google_results}")
+            st.write(f"Relative search interest for '{keyword}': {search_interest:.2f}")
 
             # Calculate KGR
-            kgr = calculate_kgr(google_results, search_volume)
+            kgr = calculate_kgr(google_results, search_interest)
 
             if kgr is not None:
                 st.write(f"Calculated KGR for '{keyword}': {kgr:.4f}")
@@ -83,7 +92,7 @@ def main():
                 interpretation = interpret_kgr(kgr)
                 st.write(f"Interpretation: {interpretation}")
         else:
-            st.write("Could not fetch the required data. Please check your keyword or API key.")
+            st.write("Could not fetch the required data. Please check your keyword.")
 
 if __name__ == '__main__':
     main()
