@@ -4,7 +4,7 @@ from googlesearch import search
 import openai  # Requires OpenAI API Key
 
 # OpenAI API Key (Replace with your own key)
-openai.api_key = "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"
+openai.api_key = "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"
 
 def get_featured_snippet(keyword):
     # Use Google search results to find the featured snippet
