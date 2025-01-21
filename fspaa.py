@@ -1,98 +1,57 @@
-import requests
-from bs4 import BeautifulSoup
-import pytrends
-from pytrends.request import TrendReq
 import streamlit as st
+from transformers import T5ForConditionalGeneration, T5Tokenizer
+import nltk
+from nltk.tokenize import sent_tokenize
 
-# Function to fetch the number of Google results by scraping the Google Search page
-def get_google_results(keyword):
-    search_url = f"https://www.google.com/search?q={keyword}"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-    }
+# Download NLTK data for sentence tokenization
+nltk.download('punkt')
+
+# Function to initialize the T5 model and tokenizer
+def initialize_model():
+    model_name = "t5-small"  # You can try 't5-base' or 't5-large' for better results
+    model = T5ForConditionalGeneration.from_pretrained(model_name)
+    tokenizer = T5Tokenizer.from_pretrained(model_name)
+    return model, tokenizer
+
+# Function to convert AI-generated text into a human-written style
+def rewrite_to_human_style(text, model, tokenizer):
+    # Summarize the text to make it more concise and human-like
+    input_text = "summarize: " + text
+    inputs = tokenizer(input_text, return_tensors="pt", max_length=512, truncation=True, padding="max_length")
     
-    try:
-        response = requests.get(search_url, headers=headers)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.text, "html.parser")
-        
-        # Scrape the number of results from the search results page
-        result_stats = soup.find("div", {"id": "result-stats"})
-        if result_stats:
-            result_text = result_stats.get_text()
-            result_count = result_text.split(" ")[1].replace(",", "")
-            return int(result_count)
-        else:
-            st.error("Unable to fetch search results.")
-            return 0
-    except Exception as e:
-        st.error(f"Error fetching Google results: {e}")
-        return 0
-
-# Function to fetch relative search interest using pytrends (Google Trends)
-def get_search_interest(keyword):
-    pytrends = TrendReq(hl='en-US', tz=360)
-    pytrends.build_payload([keyword], cat=0, timeframe='today 12-m', geo='', gprop='')
+    # Generate the summary
+    summary_ids = model.generate(inputs['input_ids'], max_length=150, num_beams=4, early_stopping=True)
     
-    try:
-        interest_over_time = pytrends.interest_over_time()
-        if not interest_over_time.empty:
-            return interest_over_time[keyword].mean()  # Average interest over the past year
-        else:
-            st.error("No data available for this keyword.")
-            return 0
-    except Exception as e:
-        st.error(f"Error fetching search interest: {e}")
-        return 0
+    # Decode the generated summary
+    summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
+    
+    # Split into short sentences
+    sentences = sent_tokenize(summary)
+    short_sentences = [sentence.strip() for sentence in sentences if len(sentence) > 0]
+    
+    # Join the sentences back into a single text
+    human_written_text = " ".join(short_sentences)
+    
+    return human_written_text
 
-# Function to calculate KGR (Keyword Golden Ratio)
-def calculate_kgr(google_results, search_interest):
-    if search_interest == 0:
-        st.error("Search interest cannot be zero!")
-        return None
-    kgr = google_results / search_interest
-    return kgr
-
-# Function to interpret the KGR value
-def interpret_kgr(kgr):
-    if kgr < 0.25:
-        return "Great opportunity to rank! (KGR < 0.25)"
-    elif 0.25 <= kgr < 1.0:
-        return "Moderate competition, still worth targeting."
-    else:
-        return "Too competitive, not recommended."
-
-# Main function to run the Streamlit app
+# Streamlit app to input and display the transformed text
 def main():
-    st.title('Keyword Golden Ratio (KGR) Calculator')
+    # Set up Streamlit UI
+    st.title("AI to Human Written Style Converter")
 
-    # Get user input for the keyword
-    keyword = st.text_input("Enter the keyword to analyze:")
-
-    if keyword:
-        # Fetch the number of Google results with the keyword
-        st.write(f"Fetching Google results for the keyword: {keyword}...")
-        google_results = get_google_results(keyword)
-
-        # Fetch the relative search interest (search volume estimate)
-        st.write(f"Fetching search interest for the keyword: {keyword}...")
-        search_interest = get_search_interest(keyword)
-
-        if google_results > 0 and search_interest > 0:
-            st.write(f"Number of Google results for '{keyword}': {google_results}")
-            st.write(f"Relative search interest for '{keyword}': {search_interest:.2f}")
-
-            # Calculate KGR
-            kgr = calculate_kgr(google_results, search_interest)
-
-            if kgr is not None:
-                st.write(f"Calculated KGR for '{keyword}': {kgr:.4f}")
-
-                # Interpret the KGR
-                interpretation = interpret_kgr(kgr)
-                st.write(f"Interpretation: {interpretation}")
-        else:
-            st.write("Could not fetch the required data. Please check your keyword.")
+    # Input text (AI-generated text)
+    ai_text = st.text_area("Enter AI-generated text:", height=250)
+    
+    if ai_text:
+        # Initialize the model and tokenizer
+        model, tokenizer = initialize_model()
+        
+        # Process the AI-generated text
+        human_text = rewrite_to_human_style(ai_text, model, tokenizer)
+        
+        # Display the human-written text
+        st.subheader("Converted Human-written Style:")
+        st.write(human_text)
 
 if __name__ == '__main__':
     main()
