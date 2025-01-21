@@ -1,8 +1,4 @@
-requests
-beautifulsoup4
-streamlit
-requests
-pytrends
-transformers
-torch
-nltk
+streamlit==1.18.0
+spaCy==3.4.1
+googletrans==4.0.0-rc1
+en-core-web-sm==3.4.0
