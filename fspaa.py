@@ -1,7 +1,7 @@
+import spacy
 import requests
 from bs4 import BeautifulSoup
 from serpapi import GoogleSearch
-from textblob import TextBlob
 import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
@@ -12,8 +12,11 @@ nltk.download('punkt')
 nltk.download('stopwords')
 nltk.download('wordnet')
 
-# Hugging Face API key
-huggingface_api_key = "your_huggingface_api_key"  # Replace with your Hugging Face API Key
+# TextRazor API Key (you need to sign up and get this key)
+textrazor_api_key = "your_textrazor_api_key"
+
+# Initialize Spacy for local NLP tasks
+nlp = spacy.load("en_core_web_sm")
 
 # Function to fetch Google search results using SerpAPI
 def get_serp_results(keyword):
@@ -51,25 +54,25 @@ def process_keywords(text):
     filtered_words = [lemmatizer.lemmatize(w) for w in words if w not in stop_words and w.isalpha()]
     return filtered_words
 
-# Function to analyze text with Hugging Face API for Named Entity Recognition (NER) and Sentiment Analysis
-def analyze_text_with_huggingface(text):
+# Function to analyze text with Spacy (NER)
+def analyze_entities_spacy(text):
+    doc = nlp(text)
+    entities = [(entity.text, entity.label_) for entity in doc.ents]
+    return entities
+
+# Function to analyze text with TextRazor API for Named Entity Recognition (NER)
+def analyze_entities_textrazor(text):
+    url = "https://api.textrazor.com/"
     headers = {
-        "Authorization": f"Bearer {huggingface_api_key}"
+        "x-textrazor-key": textrazor_api_key
     }
-    
-    # Sentiment Analysis
-    sentiment_url = "https://api-inference.huggingface.co/models/distilbert-base-uncased-finetuned-sst-2-english"
-    sentiment_response = requests.post(sentiment_url, headers=headers, json={"inputs": text})
-    sentiment = sentiment_response.json()
-    
-    sentiment_score = sentiment[0]['label'] if sentiment else 'neutral'
-
-    # Named Entity Recognition (NER)
-    ner_url = "https://api-inference.huggingface.co/models/dbmdz/bert-large-cased-finetuned-conll03-english"
-    ner_response = requests.post(ner_url, headers=headers, json={"inputs": text})
-    entities = ner_response.json()
-
-    return sentiment_score, entities
+    data = {
+        "text": text,
+        "extractors": "entities"
+    }
+    response = requests.post(url, headers=headers, data=data)
+    entities = response.json()
+    return entities.get("response", {}).get("entities", [])
 
 # Function to analyze the text and suggest SEO optimization
 def analyze_and_suggest_optimization(keyword, featured_snippet, competitor_content, your_content, paa_questions):
@@ -78,9 +81,10 @@ def analyze_and_suggest_optimization(keyword, featured_snippet, competitor_conte
     competitor_keywords = process_keywords(competitor_content)
     your_keywords = process_keywords(your_content)
     
-    # 2. Analyze sentiment using Hugging Face model
-    sentiment_score, entities = analyze_text_with_huggingface(your_content)
-
+    # 2. Analyze Sentiment and Entities using Spacy/TextRazor
+    spacy_entities = analyze_entities_spacy(your_content)
+    textrazor_entities = analyze_entities_textrazor(your_content)
+    
     suggestions = []
     
     # Keyword Density Check
@@ -95,16 +99,14 @@ def analyze_and_suggest_optimization(keyword, featured_snippet, competitor_conte
     if paa_keywords_flat:
         suggestions.append(f"Integrate phrases from 'People Also Ask' such as: {', '.join(set(paa_keywords_flat))}")
     
-    # Sentiment Analysis Suggestion
-    if sentiment_score == "NEGATIVE":
-        suggestions.append("Consider adjusting your content tone to be more positive.")
-    elif sentiment_score == "POSITIVE":
-        suggestions.append("Your content tone is positive, which is great for engagement!")
-    
     # Entity Suggestion (NER) - Include important entities in the content
-    important_entities = [entity['word'] for entity in entities if entity['entity_group'] in ['PER', 'LOC', 'ORG']]
-    if important_entities:
-        suggestions.append(f"Consider adding or emphasizing entities such as: {', '.join(important_entities)}")
+    important_spacy_entities = [entity[0] for entity in spacy_entities if entity[1] in ['PERSON', 'GPE', 'ORG']]
+    important_textrazor_entities = [entity['rawText'] for entity in textrazor_entities if entity['type'] in ['Person', 'Organization', 'Location']]
+    
+    if important_spacy_entities:
+        suggestions.append(f"Consider adding or emphasizing Spacy entities such as: {', '.join(important_spacy_entities)}")
+    if important_textrazor_entities:
+        suggestions.append(f"Consider adding or emphasizing TextRazor entities such as: {', '.join(important_textrazor_entities)}")
 
     # Content Structure: Make sure your content is well-structured with subheadings (H2/H3).
     suggestions.append("Ensure your content includes structured headings (H2/H3) to improve readability.")
