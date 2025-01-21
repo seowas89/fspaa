@@ -3,3 +3,6 @@ beautifulsoup4
 streamlit
 requests
 pytrends
+transformers
+torch
+nltk
