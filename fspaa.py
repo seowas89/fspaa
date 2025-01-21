@@ -1,61 +1,76 @@
 import streamlit as st
-import spacy
-from googletrans import Translator
+import pandas as pd
+import matplotlib.pyplot as plt
+import plotly.express as px
+from serpapi import GoogleSearch
+from wordcloud import WordCloud
 
-# Load spaCy model for text simplification
-nlp = spacy.load("en_core_web_sm")
+# Function to fetch data from serpapi
+def fetch_playstore_data(query):
+    params = {
+        "q": query,
+        "tbm": "isch",  # Using images because Play Store is included in Google Search API
+        "engine": "google",
+        "api_key": "74a076b94b88e3541df371407c65d4b4628da2d2db43576e0667d50a35d5e395"
+    }
+    
+    search = GoogleSearch(params)
+    results = search.get_dict()
 
-# Initialize the translator
-translator = Translator()
+    # Extracting the relevant data from the results
+    apps_data = []
+    for result in results['shopping_results']:
+        apps_data.append({
+            "App Name": result.get("title"),
+            "App URL": result.get("link"),
+            "Description": result.get("snippet"),
+            "Price": result.get("price"),
+            "Category": result.get("category"),
+        })
 
-# Function to simplify text by removing stopwords and punctuation
-def simplify_text(text):
-    doc = nlp(text)
-    simplified_sentences = []
+    return pd.DataFrame(apps_data)
 
-    # Simplify by removing stop words and punctuation
-    for sentence in doc.sents:
-        simplified_sentence = " ".join([token.text for token in sentence if not token.is_stop and not token.is_punct])
-        simplified_sentences.append(simplified_sentence)
 
-    return " ".join(simplified_sentences)
+# Function to visualize keyword frequency in a word cloud
+def visualize_wordcloud(dataframe):
+    all_text = " ".join(dataframe['Description'].fillna(''))
+    wordcloud = WordCloud(width=800, height=400, background_color='white').generate(all_text)
 
-# Function to translate text to Spanish
-def translate_to_spanish(text):
-    translated = translator.translate(text, src='en', dest='es')
-    return translated.text
+    st.image(wordcloud.to_array(), use_column_width=True)
 
-# Function to translate Spanish back to British English
-def translate_to_british_english(text):
-    translated = translator.translate(text, src='es', dest='en')
-    return translated.text
 
-# Streamlit app UI
-def main():
-    st.title("Text Simplification and Translation")
+# Streamlit UI layout
+st.title("Google Play Store Keyword Research Tool")
 
-    # Input Box 1: Text to simplify
-    input_text_1 = st.text_area("Enter text to simplify:")
+# Input search term (keyword)
+query = st.text_input("Enter Keyword to Research", "")
 
-    if input_text_1:
-        # Simplify the input text
-        simplified_text = simplify_text(input_text_1)
-        st.subheader("Simplified Text:")
-        st.write(simplified_text)
+if query:
+    st.write(f"Searching for apps related to **{query}**...")
 
-    # Input Box 2: Text to translate into Spanish and then to British English
-    input_text_2 = st.text_area("Enter text to translate to Spanish and British English:")
+    # Fetch data from the API
+    data = fetch_playstore_data(query)
+    st.write(f"Found **{len(data)}** apps matching the keyword.")
 
-    if input_text_2:
-        # Translate text to Spanish
-        spanish_text = translate_to_spanish(input_text_2)
-        st.subheader("Text Translated to Spanish:")
-        st.write(spanish_text)
+    # Show data as a table
+    st.dataframe(data)
 
-        # Translate Spanish text back to British English
-        british_english_text = translate_to_british_english(spanish_text)
-        st.subheader("Text Translated to British English:")
-        st.write(british_english_text)
+    # Visualizations
+    st.subheader("Visualizations")
+    
+    # Wordcloud visualization
+    st.subheader("Word Cloud of App Descriptions")
+    visualize_wordcloud(data)
 
-if __name__ == '__main__':
-    main()
+    # Category frequency bar chart
+    category_counts = data['Category'].value_counts().reset_index()
+    category_counts.columns = ['Category', 'Count']
+    st.subheader("Category Frequency Bar Chart")
+    fig = px.bar(category_counts, x='Category', y='Count', title="Category Distribution")
+    st.plotly_chart(fig)
+    
+    # App Price distribution
+    data['Price'] = data['Price'].apply(lambda x: float(x[1:]) if x != "Free" else 0.0)  # Extracting price values
+    st.subheader("App Price Distribution")
+    fig = px.histogram(data, x="Price", nbins=20, title="Price Distribution")
+    st.plotly_chart(fig)
