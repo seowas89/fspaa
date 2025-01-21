@@ -1,17 +1,15 @@
 import requests
 import streamlit as st
 from bs4 import BeautifulSoup
-import json
 
 
 # Function to fetch SEO data for the given keyword using SerpApi
 def get_seo_data(keyword, api_key):
-    # SerpApi endpoint for Google Search results
     url = f"https://serpapi.com/search?q={keyword}&api_key={api_key}&hl=en"
 
     try:
         response = requests.get(url)
-        response.raise_for_status()  # Raise an error if status code is not 2xx
+        response.raise_for_status()
         
         # Extracting data from the response
         data = response.json()
@@ -21,18 +19,17 @@ def get_seo_data(keyword, api_key):
         competitor_content = ""
         your_content = ""
 
-        # If there's a featured snippet, extract it
         if "organic_results" in data:
             for result in data["organic_results"]:
                 if "snippet" in result:
                     featured_snippet = result["snippet"]
                     break
         
-        # You can also get other details like "competitor content" from organic search results
+        # Extract the first result as the competitor content
         if "organic_results" in data:
             competitor_content = data["organic_results"][0].get('title', '')
         
-        # Placeholder for your own content (you can input it or scrape from your own website)
+        # Placeholder for your own content (can be modified by the user input)
         your_content = "Placeholder content for your website."
 
         return {
@@ -57,7 +54,6 @@ def get_people_also_ask(keyword, api_key):
         data = response.json()
         people_also_ask = []
 
-        # If there are People Also Ask questions, extract them
         if "related_questions" in data:
             for question in data["related_questions"]:
                 people_also_ask.append(question["question"])
@@ -87,10 +83,19 @@ def suggest_seo_optimization(current_snippet, competitor_content, your_content, 
     for question in people_ask_data:
         suggestions.append(f"Consider including an answer to this question: '{question}'")
 
-    # Final SEO content optimization
-    suggestions.append("Focus on clear, concise content with rich formatting and frequently asked questions.")
+    # Provide content structure suggestions
+    content = f"To win the Featured Snippet, use a structured approach. Here's an optimized version of your content:\n\n"
 
-    return suggestions
+    # Example optimized content suggestion
+    optimized_content = f"**Optimized Answer**: {current_snippet}.\n\n"
+    optimized_content += f"Make sure to place this key information in your introduction to grab attention right away."
+
+    suggestions.append(content + optimized_content)
+
+    # Suggest content placement
+    suggestions.append("Place the answer to the most frequently asked question in your introduction.")
+    
+    return suggestions, optimized_content
 
 
 # Main function to run the app
@@ -103,40 +108,56 @@ def main():
     # Get keyword input from the user
     keyword = st.text_input("Enter the Keyword for SEO Optimization:")
 
-    if keyword:
-        st.write(f"Fetching SEO data for: {keyword}...")
+    # Inputs for user to enter content
+    current_fs = st.text_area("Paste the current Featured Snippet content:")
+    competitor_content = st.text_area("Enter the Competitor's content:")
+    your_content = st.text_area("Enter your content:")
 
-        # Fetch SEO data using SerpApi
-        seo_data = get_seo_data(keyword, api_key)
+    # Button to analyze the SERP data and provide suggestions
+    if st.button('Check SERP and Optimize'):
+        if keyword:
+            st.write(f"Fetching SEO data for: {keyword}...")
 
-        if seo_data:
-            featured_snippet = seo_data.get('featured_snippet', '')
-            competitor_content = seo_data.get('competitor_content', '')
-            your_content = seo_data.get('your_content', '')
+            # Fetch SEO data using SerpApi
+            seo_data = get_seo_data(keyword, api_key)
 
-            st.subheader("Featured Snippet Content:")
-            st.write(featured_snippet)
+            if seo_data:
+                # Get the Featured Snippet and Competitor Content from SerpApi
+                featured_snippet = seo_data.get('featured_snippet', '')
+                competitor_content_serp = seo_data.get('competitor_content', '')
+                your_content_serp = your_content  # Use the user's input
 
-            st.subheader("Competitor Content:")
-            st.write(competitor_content)
+                st.subheader("Current Featured Snippet Content:")
+                st.write(current_fs)
 
-            st.subheader("Your Content:")
-            st.write(your_content)
+                st.subheader("Competitor Content:")
+                st.write(competitor_content)
 
-            # Fetch People Also Ask questions
-            people_ask_data = get_people_also_ask(keyword, api_key)
+                st.subheader("Your Content:")
+                st.write(your_content)
 
-            st.subheader("People Also Ask Questions:")
-            for question in people_ask_data:
-                st.write(question)
+                # Fetch People Also Ask questions
+                people_ask_data = get_people_also_ask(keyword, api_key)
 
-            # Suggest SEO optimization
-            st.subheader("SEO Optimization Suggestions:")
-            suggestions = suggest_seo_optimization(featured_snippet, competitor_content, your_content, people_ask_data)
+                st.subheader("People Also Ask Questions:")
+                for question in people_ask_data:
+                    st.write(question)
 
-            for suggestion in suggestions:
-                st.write(f"- {suggestion}")
+                # Suggest SEO optimization
+                st.subheader("SEO Optimization Suggestions:")
+                suggestions, optimized_content = suggest_seo_optimization(
+                    current_fs, competitor_content, your_content, people_ask_data
+                )
 
+                for suggestion in suggestions:
+                    st.write(f"- {suggestion}")
+
+                st.subheader("Optimized Content Suggestion:")
+                st.write(optimized_content)
+
+                st.subheader("Content Placement Suggestions:")
+                st.write("To improve your chances of winning the featured snippet, place the optimized answer at the beginning of your content.")
+                st.write("Ensure that you structure your content with clear headings, subheadings, and concise bullet points.")
 
 if __name__ == '__main__':
     main()
