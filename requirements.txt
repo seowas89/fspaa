@@ -4,3 +4,8 @@ matplotlib
 seaborn
 beautifulsoup4
 googlesearch-python
+serpapi==2.0.6
+requests==2.26.0
+spacy==3.1.2
+nltk==3.6.3
+textrazor==3.1.3
