@@ -6,6 +6,3 @@ pytrends
 transformers
 torch
 nltk
-Flask==2.2.2
-spacy==3.4.1
-en-core-web-sm==3.4.0
